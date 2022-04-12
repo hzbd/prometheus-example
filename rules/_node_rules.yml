@@ -1,0 +1,25 @@
+#
+#------------------+
+# Recording Rules  |
+#------------------+
+#
+
+groups:
+  - name: recording_rules     # 规则名称
+    interval: 10s             # 查询间隔
+    rules:
+
+      # Record名称在prometheus中可直接查询
+      - record: instance:node_cpu:avg_rate5m 
+        expr: 100-avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance)*100
+        labels:
+          metric_type: aggragation  # 增加的标签，通过此规则查出来的metric值
+          
+      - record: instance:node_memory_usage:percentage
+        expr: (node_memory_MemTotal_bytes - (node_memory_MemFree_bytes + node_memory_Cached_bytes + node_memory_Buffers_bytes)) / node_memory_MemTotal_bytes  * 100
+
+      - record: node_exporter:node_filesystem_free:fs_used_percents
+        expr: 100 - 100 * node_filesystem_free_bytes{ mountpoint="/"}/node_filesystem_size_bytes{mountpoint="/"}
+
+      - record: node_exporter:node_memory_free:memory_used_percents
+        expr: 100 - 100 * (node_memory_MemFree_bytes/node_memory_MemTotal_bytes)

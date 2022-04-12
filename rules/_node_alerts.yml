@@ -1,0 +1,52 @@
+#
+#------------------+
+# Alerting Rules   |
+#------------------+
+#
+
+groups:
+  - name: alerting_rules              # 规则名称
+    rules:
+
+      - alert: HighNodeCPU              # 告警名称
+        expr: instance:node_cpu:avg_rate5m > 4  # 告警条件
+        for: 1m                         # 查询时间间隔
+        labels:
+          severity: warning             # 告警级别
+        annotations:                    # 注释
+          summary: High Node CPU for 1 Mins # 发送告警的内容
+          console: Thank you Test   
+
+      - alert: DiskWillFillin4Hours
+        expr: predict_linear(node_filesystem_free_bytes[1h], 4*3600) < 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summmary: Disk on {{ $labels.instance }} will fill in approximately 4 hours.
+
+      - alert: InstanceDown
+        expr: up{instance=~"192.168.56.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Host {{ $labels.instance }} of {{ $labels.job }} is Down!
+
+      - alert: MemoryFree10%
+        expr: node_exporter:node_memory_free:memory_used_percents >= 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ $labels.instance }} hight memory usage"
+          description: "{{ $labels.instance }} has more than 90% of its memory used."
+
+      - alert: DiskSpace10%Free
+        expr: node_exporter:node_filesystem_free:fs_used_percents >= 90
+        labels:
+          severity: moderate
+        annotations:
+          summary: "Instance {{ $labels.instance }} is low on disk space"
+          description: "{{ $labels.instance }} has only {{ $value }}% free."
+
