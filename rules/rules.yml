@@ -1,4 +1,6 @@
-
+#
+# github:
+# https://github.com/samber/awesome-prometheus-alerts
 #
 # The following yaml cannot be copy-pasted to Prometheus configuration.
 #     Please navigate to https://awesome-prometheus-alerts.grep.to/rules instead.
