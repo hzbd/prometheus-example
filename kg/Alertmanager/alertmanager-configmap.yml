@@ -1,0 +1,172 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-conf
+  labels:
+    name: alertmanager-conf
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+      smtp_from: from@example.com
+      smtp_smarthost: SMTPendpoint:SMTPport
+      smtp_require_tls: true
+      pagerduty_url: https://events.pagerduty.com/v2/enqueue
+      hipchat_api_url: https://api.hipchat.com/
+      opsgenie_api_url: https://api.opsgenie.com/
+      wechat_api_url: https://qyapi.weixin.qq.com/cgi-bin/
+      victorops_api_url: https://alert.victorops.com/integrations/generic/20131114/alert/
+    route:
+      receiver: default
+      group_by:
+      - alertname
+      - namespace
+      - node
+      - pod
+      - endpoint
+      - instance
+      - job
+      - persistentvolumeclaim
+      - identifier
+      - daemonset
+      routes:
+      - receiver: email-high
+        match_re:
+          alertname: '(critical_node_memory_usage|critical_low_disk_space|critical_node_cpu_usage|critical_node_helthcheck)'
+          severity: '(critical)'
+        continue: true
+      - receiver: email-medium
+        match_re:
+          alertname: '(high_node_memory_usage|high_low_disk_space|high_node_cpu_usage|k8s_deamon_set_available|k8s_container_restart_count)'
+          severity: '(warning|critical)'
+        continue: true
+      - receiver: email-low
+        match_re:
+          alertname: '(k8s_pvc_state|k8s_container_frequently_restarting|k8s_JobFailed|k8s_status)'
+          severity: '(warning)'
+        continue: true
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+    inhibit_rules:
+    - source_match:
+        severity: critical
+      target_match:
+        severity: warning
+      equal:
+      - alertname
+    receivers:
+    - name: default  
+    - name: email-high
+      email_configs:
+      - send_resolved: true
+        to: to@example.com
+        from: from@example.com
+        smarthost: SMTPendpoint:SMTPport
+        auth_username: [SECRET]
+        auth_password: [SECRET]
+        headers:
+          From: from@example.com
+          Subject: '{{ range .Alerts }}[k8s]-[high]-[{{ .Labels.alertname | toLower }}]-[{{
+            .Labels.namespace}}]-[{{ .Labels.cluster | toLower }}]{{ end }}'
+          To: to@example.com
+        html: |
+          <p>
+          {{ if gt (len .Alerts.Firing) 0 }}{{ range .Alerts.Firing }}
+          <p><strong style="color: red">{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+          <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+          <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+          <p><strong>Details:</strong>
+          {{ range .Labels.SortedPairs }}
+          <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+          {{ end }}</p>
+          {{ end }}
+          {{ end }}</p>
+          <p>
+          {{ if gt (len .Alerts.Resolved) 0 }}{{ range .Alerts.Resolved }}
+          <p><strong style="color: green">{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+          <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+          <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+          <p><strong>Details:</strong>
+          {{ range .Labels.SortedPairs }}
+          <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+          {{ end }}</p>
+          {{ end }}
+          {{ end }}</p>
+        require_tls: true
+    - name: email-medium
+      email_configs:
+      - send_resolved: true
+        to: to@example.com
+        from: from@example.com
+        smarthost: SMTPendpoint:SMTPport
+        auth_username: [SECRET]
+        auth_password: [SECRET]
+        headers:
+          From: from@example.com
+          Subject: '{{ range .Alerts }}[k8s]-[medium]-[{{ .Labels.alertname | toLower }}]-[{{
+            .Labels.namespace}}]-[{{ .Labels.cluster | toLower }}]{{ end }}'
+          To: to@example.com
+        html: |
+            <p>
+            {{ if gt (len .Alerts.Firing) 0 }}{{ range .Alerts.Firing }}
+            <p><strong style="color: red">{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+            <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+            <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+            <p><strong>Details:</strong>
+            {{ range .Labels.SortedPairs }}
+            <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+            {{ end }}</p>
+            {{ end }}
+            {{ end }}</p>
+            <p>
+            {{ if gt (len .Alerts.Resolved) 0 }}{{ range .Alerts.Resolved }}
+            <p><strong style="color: green">{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+            <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+            <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+            <p><strong>Details:</strong>
+            {{ range .Labels.SortedPairs }}
+            <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+            {{ end }}</p>
+            {{ end }}
+            {{ end }}</p>
+        require_tls: true
+    - name: email-low
+      email_configs:
+      - send_resolved: true
+        to: to@example.com
+        from: from@example.com
+        smarthost: SMTPendpoint:SMTPport
+        auth_username: [SECRET]
+        auth_password: [SECRET]
+        headers:
+          From: from@example.com
+          Subject: '{{ range .Alerts }}[k8s]-[low]-[{{ .Labels.alertname | toLower }}]-[{{
+              .Labels.namespace}}]-[{{ .Labels.cluster | toLower }}]{{ end }}'
+          To: to@example.com
+        html: |
+            <p>
+            {{ if gt (len .Alerts.Firing) 0 }}{{ range .Alerts.Firing }}
+            <p><strong style="color: red">{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+            <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+            <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+            <p><strong>Details:</strong>
+            {{ range .Labels.SortedPairs }}
+            <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+            {{ end }}</p>
+            {{ end }}
+            {{ end }}</p>
+            <p>
+            {{ if gt (len .Alerts.Resolved) 0 }}{{ range .Alerts.Resolved }}
+            <p><strong style="color: green">{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+            <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+            <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+            <p><strong>Details:</strong>
+            {{ range .Labels.SortedPairs }}        
+            <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>        
+            {{ end }}</p>
+            {{ end }}
+            {{ end }}</p>
+        require_tls: true
+  

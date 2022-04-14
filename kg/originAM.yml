@@ -1,0 +1,167 @@
+global:
+    resolve_timeout: 5m
+    smtp_from: from@example.com
+    smtp_smarthost: SMTPendpoint:SMTPport
+    smtp_auth_username: [SECRET]
+    smtp_auth_password: [SECRET]
+    smtp_require_tls: true
+  route:
+    receiver: default
+    group_by:
+    - alertname
+    - namespace
+    - node
+    - pod
+    - endpoint
+    - instance
+    - job
+    - persistentvolumeclaim
+    - identifier
+    - daemonset
+    routes:
+    - receiver: email-high
+      match_re:
+        alertname: ^(?:(KubeAPIDown|KubeControllerManagerDown|KubeSchedulerDown|KubeStateMetricsDown|KubeletDown|NodeExporterDown|PrometheusDown|KubePodCrashLooping|KubePodNotReady|KubeDaemonSetRolloutStuck|KubePersistentVolumeUsageCritical|KubeAPILatencyHigh|KubeClientCertificateExpiration|CAP/CLUSTER/NODE_STATUS_IS_NOT_READY|CAP/INFRA/INSTANCE_DOWN|CAP/INFRA/HIGH_LOAD_30m|CAP/INFRA/HIGH_CPU_30m|CAP/INFRA/HIGH_MEMORY_30m|CAP/INFRA/HIGH_DISK_IO_60m|CAP/DB/PG_DOWN|CAP/DB/PG_RECOVERY_STATUS_SWITCH_REPLICA))$
+        severity: ^(?:critical)$
+      continue: true
+    - receiver: email-medium
+      match_re:
+        alertname: ^(?:(PrometheusErrorSendingAlerts|CAP/INFRA/HIGH_LOAD_10m|CAP/INFRA/HIGH_CPU_5m|CAP/INFRA/HIGH_MEMORY_5m|CAP/INFRA/LOW_ROOTFS_DISK_SPACE|CAP/INFRA/PVC_LOW_DISK_SPACE|CAP/INFRA/POD_FREQUENTLY_RESTARTING|CAP/INFRA/CONTAINER_IS_DOWN|CAP/APP/DEPLOYMENT_FAILED|CAP/APP/POD_CONTAINER_FREQUENTLY_RESTARTING|CAP/APP/PVC_LOW_DISK_SPACE|CAP/APP/PVC_STUCK_IN_PENDING_STATE))$
+        severity: ^(?:(warning|critical))$
+      continue: true
+    - receiver: email-low
+      match_re:
+        alertname: ^(?:(KubeAPIErrorsHigh|PrometheusOperatorDown|KubeDeploymentGenerationMismatch|KubeDeploymentReplicasMismatch|KubeStatefulSetReplicasMismatch|KubeStatefulSetGenerationMismatch|KubeDaemonSetNotScheduled|KubeDaemonSetMisScheduled|KubeCronJobRunning|KubeJobCompletion|KubeJobFailed|KubeCPUOvercommit|KubeMemOvercommit|KubeQuotaExceeded|KubeNodeNotReady|KubeVersionMismatch|KubeClientErrors|KubeletTooManyPods|KubeAPILatencyHigh|KubeClientCertificateExpiration|AlertmanagerConfigInconsistent|AlertmanagerDownOrMissing|AlertmanagerFailedReload|PrometheusConfigReloadFailed|PrometheusNotificationQueueRunningFull|PrometheusErrorSendingAlerts|PrometheusNotConnectedToAlertmanagers|PrometheusTSDBReloadsFailing|PrometheusTSDBCompactionsFailing|PrometheusTSDBWALCorruptions|PrometheusNotIngestingSamples|PrometheusTargetScrapesDuplicate))$
+        severity: ^(?:warning)$
+      continue: true
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 12h
+  inhibit_rules:
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal:
+    - alertname
+  receivers:
+  - name: default
+  - name: email-high
+    email_configs:
+    - send_resolved: true
+      to: to@examlpe.com
+      from: from@examlpe.com
+      smarthost: SMTPendpoint:SMTPport
+      auth_username: [SECRET]
+      auth_password: [SECRET]
+      headers:
+        From: from@examlpe.com
+        Subject: '{{ range .Alerts }}[ProjectName]-[HIGH]-[{{ .Labels.alertname}}]-[{{
+          .Labels.namespace}}]-[{{ .Labels.cluster}}]{{ end }}'
+        To: to@examlpe.com
+      html: |
+        <p>
+        {{ if gt (len .Alerts.Firing) 0 }}{{ range .Alerts.Firing }}
+        <p><strong>{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+        <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+        <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+        <p><strong>Details:</strong>
+        {{ range .Labels.SortedPairs }}
+        <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+        {{ end }}</p>
+        {{ end }}
+        {{ end }}</p>
+        <p>
+        {{ if gt (len .Alerts.Resolved) 0 }}{{ range .Alerts.Resolved }}
+        <p><strong>{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+        <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+        <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+        <p><strong>Details:</strong>
+        {{ range .Labels.SortedPairs }}
+        <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+        {{ end }}</p>
+        {{ end }}
+        {{ end }}</p>
+      require_tls: true
+  - name: email-medium
+    email_configs:
+    - send_resolved: true
+      to: to@examlpe.com
+      from: from@examlpe.com
+      smarthost: SMTPendpoint:SMTPport
+      auth_username: [SECRET]
+      auth_password: [SECRET]
+      headers:
+        From: from@examlpe.com
+        Subject: '{{ range .Alerts }}[ProjectName]-[MEDIUM]-[{{ .Labels.alertname}}]-[{{
+          .Labels.namespace}}]-[{{ .Labels.cluster}}]{{ end }}'
+        To: to@examlpe.com
+      html: |
+        <p>
+        {{ if gt (len .Alerts.Firing) 0 }}{{ range .Alerts.Firing }}
+        <p><strong>{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+        <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+        <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+        <p><strong>Details:</strong>
+        {{ range .Labels.SortedPairs }}
+        <ul>
+        <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+        </ul>
+        {{ end }}</p>
+        {{ end }}
+        {{ end }}</p>
+        <p>
+        {{ if gt (len .Alerts.Resolved) 0 }}{{ range .Alerts.Resolved }}
+        <p><strong>{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+        <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+        <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+        <p><strong>Details:</strong>
+        {{ range .Labels.SortedPairs }}
+        <ul>
+        <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+        </ul>
+        {{ end }}</p>
+        {{ end }}
+        {{ end }}</p>
+      require_tls: true
+  - name: email-low
+    email_configs:
+    - send_resolved: true
+      to: to@examlpe.com
+      from: from@examlpe.com
+      smarthost: SMTPendpoint:SMTPport
+      auth_username: [SECRET]
+      auth_password: [SECRET]
+      headers:
+        From: from@examlpe.com
+        Subject: '{{ range .Alerts }}[ProjectName]-[LOW]-[{{ .Labels.alertname}}]-[{{
+          .Labels.namespace}}]-[{{ .Labels.cluster}}]{{ end }}'
+        To: to@examlpe.com
+      html: |
+        <p>
+        {{ if gt (len .Alerts.Firing) 0 }}{{ range .Alerts.Firing }}
+        <p><strong>{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+        <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+        <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+        <p><strong>Details:</strong>
+        {{ range .Labels.SortedPairs }}
+        <ul>
+        <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+        </ul>
+        {{ end }}</p>
+        {{ end }}
+        {{ end }}</p>
+        <p>
+        {{ if gt (len .Alerts.Resolved) 0 }}{{ range .Alerts.Resolved }}
+        <p><strong>{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+        <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+        <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+        <p><strong>Details:</strong>
+        {{ range .Labels.SortedPairs }}
+        <ul>
+        <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+        </ul>
+        {{ end }}</p>
+        {{ end }}
+        {{ end }}</p>
+      require_tls: true

@@ -1,0 +1,187 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: prometheus-rules-conf
+  namespace: monitoring
+data:
+  prometheus_alerts.yml: |
+    groups:
+    - name: prometheus_alerts
+      rules:
+      - alert: SYSTEM/PrometheusNotConnectedToAlertmanagers
+        expr: (sum by(instance) (prometheus_notifications_alertmanagers_discovered)) < 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          description: "Prometheus in {{ $labels.instance}} is not connected to Alertmanager"
+
+  node_alerts.yml: |
+    groups:
+    - name: custom_rules
+      rules:
+        - record: instance:node:mem
+          expr: 100 * (1 - node_memory_MemAvailable_bytes{job="node-exporter"} / node_memory_MemTotal_bytes{job="node-exporter"})
+
+        - record: instance:diskspace:low
+          expr: (sum by(instance, mountpoint, device) (node_filesystem_free_bytes{mountpoint="/newvol"}) / sum by(instance, mountpoint, device) (node_filesystem_size_bytes{mountpoint="/newvol"}) * 100)
+
+        - record: instance:container:mem
+          expr: (sum by(instance, name, container, pod) (container_memory_usage_bytes{container="my-nginx"}) / sum by(instance, name, container, pod) (container_memory_max_usage_bytes{container="my-nginx"}) * 100)
+
+        - record: instance:container:cpu
+          expr: (sum by(instance, name, container, cpu, pod) (rate(container_cpu_usage_seconds_total{container="my-nginx"}[3m])) * 100)
+
+        - record: instance:container:freespace
+          expr: sum by(instance, name, container)(1-container_fs_usage_bytes{container="my-nginx"}/container_fs_limit_bytes{container="my-nginx"})*100 
+
+    - name: custom_warning_alerts
+      rules:
+      - alert: [k8s]-[high]-[HIGH_NODE_MEMORY_USAGE]
+        expr: instance:node:mem < 70
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "[k8s]-[high]-[HIGH_NODE_MEMORY_USAGE]-[{{ $labels.instance}}]-[aws] High Memory of {{ humanize $value }}% for 1 hour"
+
+      - alert: [k8s]-[high]-[Container_LOW_DISK_SPACE]
+        expr: instance:container:freespace  < 20
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "[k8s]-[high]-[Container_LOW_DISK_SPACE]-[{{ $labels.instance}}]-[aws]"
+
+      - alert: [k8s]-[high]-[LOW_DISK_SPACE]
+        expr: instance:diskspace:low  < 20
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "[k8s]-[high]-[LOW_DISK_SPACE]-[{{ $labels.instance}}]-[aws]"
+
+      - alert: [k8s]-[high]-[HIGH_NODE_CPU_USAGE]
+        expr: instance:node_cpu:avg_rate5m > 80
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "[k8s]-[high]-[HIGH_NODE_CPU_USAGE]-[{{ $labels.instance}}]-[aws]"
+
+      - alert: [k8s]-[high]-[HIGH_CONTAINER_MEMORY_USAGE]
+        expr: instance:container:mem > 80
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "[k8s]-[high]-[HIGH_CONTAINER_MEMORY_USAGE]-[{{ $labels.instance}}]-[aws]"
+          description: "Container Memory usage is above 80%  LABELS: pod: {{ $labels.pod | toUpper }} instance: {{ $labels.instance | toUpper }}"
+
+      - alert: [k8s]-[high]-[HIGH_CONTAINER_CPU_USAGE]
+        expr: instance:container:cpu < 80
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "[k8s]-[high]-[HIGH_CONTAINER_CPU_USAGE]-[{{ $labels.instance}}]-[aws]"
+          description: "Container CPU usage in instance - {{ $labels.instance }}. LABELS: CPU count: {{ $labels.cpu }} pod: {{ $labels.pod | toUpper }}"
+
+  node_critical_alerts.yml: |
+    groups:
+    - name: custom_critical_alerts
+      rules:
+      - alert: [k8s]-[urgent]-[HIGH_NODE_MEMORY_USAGE]
+        expr: instance:node:mem < 95
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "[k8s]-[urgent]-[HIGH_NODE_MEMORY_USAGE]-[{{ $labels.instance}}]-[aws]"
+
+      - alert: [k8s]-[urgent]-[Container_LOW_DISK_SPACE]
+        expr: instance:container:freespace  < 10
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "[k8s]-[urgent]-[Container_LOW_DISK_SPACE]-[{{ $labels.instance}}]-[aws]"
+
+      - alert: [k8s]-[urgent]-[LOW_DISK_SPACE]
+        expr: instance:diskspace:low  < 10
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "[k8s]-[urgent]-[LOW_DISK_SPACE]-[{{ $labels.instance}}]-[aws]"
+
+      - alert: [k8s]-[urgent]-[HIGH_NODE_CPU_USAGE]
+        expr: instance:node_cpu:avg_rate5m < 90
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "[k8s]-[urgent]-[HIGH_NODE_CPU_USAGE]-[{{ $labels.instance}}]-[aws]"
+
+      - alert: [k8s]-[urgent]-[HIGH_CONTAINER_MEMORY_USAGE]
+        expr: instance:container:mem > 90
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "[k8s]-[urgent]-[HIGH_CONTAINER_MEMORY_USAGE]-[{{ $labels.instance}}]-[aws]"
+          description: "Container Memory usage is above 80%  LABELS: pod: {{ $labels.pod | toUpper }} instance: {{ $labels.instance | toUpper }}"
+
+      - alert: [k8s]-[urgent]-[HIGH_CONTAINER_CPU_USAGE]
+        expr: instance:container:cpu > 90
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "[k8s]-[urgent]-[HIGH_CONTAINER_CPU_USAGE]-[{{ $labels.instance}}]-[aws]"
+          description: "Container CPU usage in instance - {{ humanize $value }}%."
+
+
+  kubelet.yml: |
+    groups:
+      - name: kube-state-metrics
+        rules:
+        - alert: KUBELET/KubeStateMetricsListErrors
+          annotations:
+            message: kube-state-metrics is experiencing errors at an elevated rate in list
+              operations. This is likely causing it to not be able to expose metrics about
+              Kubernetes objects correctly or at all.
+          expr: |
+            (sum(rate(kube_state_metrics_list_total{job="kube-state-metrics",result="error"}[5m]))
+              /
+            sum(rate(kube_state_metrics_list_total{job="kube-state-metrics"}[5m])))
+            > 0.01
+          for: 1m
+          labels:
+            severity: critical
+        - alert: KUBELET/KubeStateMetricsWatchErrors
+          annotations:
+            message: kube-state-metrics is experiencing errors at an elevated rate in watch
+              operations. This is likely causing it to not be able to expose metrics about
+              Kubernetes objects correctly or at all.
+          expr: |
+            (sum(rate(kube_state_metrics_watch_total{job="kube-state-metrics",result="error"}[5m]))
+              /
+            sum(rate(kube_state_metrics_watch_total{job="kube-state-metrics"}[5m])))
+            > 0.01
+          for: 1m
+          labels:
+            severity: critical
+    
+  node_rules.yml: |
+    groups:
+    - name: node_rules
+      rules:
+        - record: instance:node_cpu:avg_rate5m
+          expr: 100 - avg(irate(node_cpu_seconds_total{job="node-exporter", mode="idle"}[5m])) by (instance, cpu) * 100
+        - record: instance:node_memory_usage:percentage
+          expr: ((sum(node_memory_MemTotal_bytes) - sum(node_memory_MemFree_bytes) - sum(node_memory_Buffers_bytes) - sum(node_memory_Cached_bytes)) / sum(node_memory_MemTotal_bytes)) * 100
+        - record: instance:root:node_filesystem_usage:percentage
+          expr: (node_filesystem_size_bytes{mountpoint="/rootfs"} - node_filesystem_free_bytes{mountpoint="/rootfs"}) /node_filesystem_size_bytes{mountpoint="/rootfs"} * 100

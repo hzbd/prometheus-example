@@ -1,0 +1,178 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    creationTimestamp: null
+    name: prometheus-rules-conf
+    namespace: monitoring
+data:
+    k8s_alerts.yml: |
+        groups:
+        - name: k8s_alerts
+          rules:
+            - alert: k8s_status
+              expr: up{k8s_app="nodelocaldns",kubernetes_namespace="kube-system"} < 1
+              for: 10m
+              labels:
+                  severity: critical
+              annotations:
+                  message: Instance {{ $labels.instance }} is down!
+
+            - alert: k8s_JobFailed
+              expr: kube_job_status_failed{job="kube-state-metrics",namespace=~"(kube.*|default)"} > 0
+              for: 10m
+              labels:
+                  severity: warning
+              annotations:
+                  message: Job {{ $labels.namespace }}/{{ $labels.job_name }} failed to complete.
+
+            - alert: k8s_container_frequently_restarting
+              expr: container:frequently:restarting > 5
+              for: 10m
+              labels:
+                  severity: warning
+              annotations:
+                  description: '{{ $labels.namespace }}: POD[{{ $labels.pod }}]-Container[{{ $labels.container }})] is frequently restarting!'
+            
+            - alert: k8s_pvc_state
+              expr: kube_persistentvolumeclaim_status_phase{job="kube-state-metrics",namespace=~"(kube.*|default)",phase=~"Pending"} > 0
+              for: 10m
+              labels:
+                  severity: warning
+              annotations:
+                  description: PVC [{{ $labels.persistentvolumeclaim }}] in [{{ $labels.phase | toUpper }}] state.
+
+            - alert: k8s_deamon_set_available
+              expr: sum by (deamonset, namespace, job)(kube_daemonset_status_number_available{namespace=~"kube.*"}) < 4
+              for: 10m
+              labels:
+                  severity: warning
+              annotations:
+                  description: Kube DaemonSet Status Number Available are less than 4. VALUE = {{ $value }}
+
+            - alert: k8s_container_restart_count
+              expr: sum by(pod, container, namespace)(kube_pod_container_status_restarts_total{namespace=~"(default|monitoring)"}) > 100
+              for: 10m
+              labels:
+                  severity: warning
+              annotations:
+                  description: Container restarts more than {{ $value }} times
+
+    node_alerts.yml: |
+        groups:
+        - name: node_high_alerts
+          rules:          
+            - alert: "high_node_memory_usage"
+              expr: instance:node:mem > 70
+              for: 30s
+              labels:
+                severity: warning
+              annotations:
+                description: "Node memory is filling up (< 30% left)\n  VALUE = {{ $value }}"
+                
+            - alert: "high_low_disk_space"
+              expr: instance:diskspace:low  < 20
+              for: 30s
+              labels:
+                severity: warning
+              annotations:
+                description: "Volume {{ $labels.device }} free space is less then 20%\n  VALUE = {{ $value }}"
+        
+            - alert: "high_node_cpu_usage"
+              expr: instance:node_cpu:avg_rate5m > 80
+              for: 30s
+              labels:
+                severity: warning
+              annotations:
+                description: "CPU load is > 80%\n  VALUE = {{ $value }}"
+
+        - name: node_critical_alerts
+          rules:          
+            - alert: "critical_node_memory_usage"
+              expr: instance:node:mem > 90
+              for: 30s
+              labels:
+                severity: critical
+              annotations:
+                description: "Node memory is filling up (< 30% left)\n  VALUE = {{ $value }}"
+
+            - alert: "critical_low_disk_space"
+              expr: instance:diskspace:low  < 10
+              for: 30s
+              labels:
+                severity: critical
+              annotations:
+                description: "Volume {{ $labels.device }} free space is less then 20%\n  VALUE = {{ $value }}"
+        
+            - alert: "critical_node_cpu_usage"
+              expr: instance:node_cpu:avg_rate5m > 90
+              for: 30s
+              labels:
+                severity: critical
+              annotations:
+                description: "CPU load is > 80%\n  VALUE = {{ $value }}"   
+            
+            - alert: "critical_node_helthcheck"
+              expr: sum by(node) (kube_node_info{node=~"node.*"}) < 1
+              for: 30s
+              labels:
+                severity: critical
+              annotations:
+                description: "Node [{{ $labels.node }}] is down!"
+
+    kubelet.yml: |
+      groups:
+      - name: kube-state-metrics
+        rules:
+        - alert: KUBELET/KubeStateMetricsListErrors
+          annotations:
+            message: kube-state-metrics is experiencing errors at an elevated rate in list
+              operations. This is likely causing it to not be able to expose metrics about
+              Kubernetes objects correctly or at all.
+          expr: |
+            (sum(rate(kube_state_metrics_list_total{job="kube-state-metrics",result="error"}[5m]))
+              /
+            sum(rate(kube_state_metrics_list_total{job="kube-state-metrics"}[5m])))
+            > 0.01
+          for: 1m
+          labels:
+            severity: critical
+        - alert: KUBELET/KubeStateMetricsWatchErrors
+          annotations:
+            message: kube-state-metrics is experiencing errors at an elevated rate in watch
+              operations. This is likely causing it to not be able to expose metrics about
+              Kubernetes objects correctly or at all.
+          expr: |
+            (sum(rate(kube_state_metrics_watch_total{job="kube-state-metrics",result="error"}[5m]))
+              /
+            sum(rate(kube_state_metrics_watch_total{job="kube-state-metrics"}[5m])))
+            > 0.01
+          for: 1m
+          labels:
+            severity: critical
+    
+    node_rules.yml: |
+      groups:
+      - name: node_rules
+        rules:
+          - record: instance:node_cpu:avg_rate5m
+            expr: 100 - avg by(instance) (irate(node_cpu_seconds_total{job="node-exporter",mode="idle"}[1m])) * 100
+          - record: instance:node_memory_usage:percentage
+            expr: ((sum(node_memory_MemTotal_bytes) - sum(node_memory_MemFree_bytes) - sum(node_memory_Buffers_bytes) - sum(node_memory_Cached_bytes)) / sum(node_memory_MemTotal_bytes)) * 100
+          - record: instance:root:node_filesystem_usage:percentage
+            expr: (node_filesystem_size_bytes{mountpoint="/rootfs"} - node_filesystem_free_bytes{mountpoint="/rootfs"}) /node_filesystem_size_bytes{mountpoint="/rootfs"} * 100                
+          - record: quota:container:cpu
+            expr: sum by(container, pod, namespace)(rate(container_cpu_usage_seconds_total{namespace="default"}[3m]) * 100)/sum by(container, pod, namespace)(kube_pod_container_resource_requests_cpu_cores{namespace="default"}) * 100
+          - record: quota:container:memory
+            expr: sum by(container, pod, namespace) (rate(container_memory_usage_bytes{namespace="default"}[3m])* 100) / sum by(container, pod, namespace) (kube_pod_container_resource_requests_memory_bytes{namespace="default"}) * 100
+          - record: container:frequently:restarting
+            expr: increase(kube_pod_container_status_restarts_total{namespace="default"}[1h])
+          - record: instance:node:mem
+            expr: 100 * (1 - node_memory_MemAvailable_bytes{job="node-exporter"} / node_memory_MemTotal_bytes{job="node-exporter"})
+          - record: instance:diskspace:low
+            expr: (sum by(instance, mountpoint, device, namespace) (node_filesystem_free_bytes{mountpoint="/newvol"}) / sum by(instance, mountpoint, device, namespace) (node_filesystem_size_bytes{mountpoint="/newvol"}) * 100)
+          - record: instance:container:mem
+            expr: (sum by(instance, name, container, pod, namespace) (container_memory_usage_bytes{container="my-nginx"}) / sum by(instance, name, container, pod, namespace) (container_spec_memory_limit_bytes{container="my-nginx"}) * 100)
+          - record: instance:container:cpu
+            expr: (sum by(instance, name, container, cpu, pod, namespace) (rate(container_cpu_usage_seconds_total{container="my-nginx"}[3m])) * 100)
+          - record: instance:container:freespace
+            expr: sum by(instance, name, container, namespace)(1-container_fs_usage_bytes{container="my-nginx"}/container_fs_limit_bytes{container="my-nginx"})*100    

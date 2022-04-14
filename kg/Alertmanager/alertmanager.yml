@@ -1,0 +1,163 @@
+global:
+  resolve_timeout: 5m
+  smtp_from: from@example.com
+  smtp_smarthost: SMTPendpoint:SMTPport
+  smtp_require_tls: true
+  pagerduty_url: https://events.pagerduty.com/v2/enqueue
+  hipchat_api_url: https://api.hipchat.com/
+  opsgenie_api_url: https://api.opsgenie.com/
+  wechat_api_url: https://qyapi.weixin.qq.com/cgi-bin/
+  victorops_api_url: https://alert.victorops.com/integrations/generic/20131114/alert/
+route:
+  receiver: default
+  group_by:
+  - alertname
+  - namespace
+  - node
+  - pod
+  - endpoint
+  - instance
+  - job
+  - persistentvolumeclaim
+  - identifier
+  - daemonset
+  routes:
+  - receiver: email-high
+    match_re:
+      alertname: '(PROD/CRITICAL_NODE_MEMORY_USAGE|PROD/NO_DISK_SPACE|PROD/CRITICAL_NODE_CPU_USAGE|PROD/CRITICAL_CONTAINER_MEMORY_USAGE|PROD/CRITICAL_CONTAINER_CPU_USAGE)'
+      severity: '(critical)'
+    continue: true
+  - receiver: email-medium
+    match_re:
+      alertname: '(PROD/HIGH_NODE_MEMORY_USAGE|PROD/LOW_DISK_SPACE|PROD/HIGH_NODE_CPU_USAGE)'
+      severity: '(warning|critical)'
+    continue: true
+  - receiver: email-low
+    match_re:
+      alertname: '(PROD/HIGH_CONTAINER_MEMORY_USAGE|PROD/Container_LOW_DISK_SPACE|PROD/Container_LOW_DISK_SPACE|PROD/HIGH_CONTAINER_CPU_USAGE)'
+      severity: '(warning)'
+    continue: true: ^(?:warning)$
+    continue: true
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 12h
+inhibit_rules:
+- source_match:
+    severity: critical
+  target_match:
+    severity: warning
+  equal:
+  - alertname
+receivers:
+- name: default  
+- name: email-high
+  email_configs:
+  - send_resolved: true
+    to: to@example.com
+    from: from@example.com
+    smarthost: SMTPendpoint:SMTPport
+    auth_username: [SECRET]
+    auth_password: [SECRET]
+    headers:
+      From: from@example.com
+      Subject: '{{ range .Alerts }}[k8s]-[high]-[{{ .Labels.alertname | toLower }}]-[{{
+        .Labels.namespace}}]-[eu]{{ end }}'
+      To: to@example.com
+    html: |
+      <p>
+      {{ if gt (len .Alerts.Firing) 0 }}{{ range .Alerts.Firing }}
+      <p><strong style="color: red">{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+      <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+      <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+      <p><strong>Details:</strong>
+      {{ range .Labels.SortedPairs }}
+      <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+      {{ end }}</p>
+      {{ end }}
+      {{ end }}</p>
+      <p>
+      {{ if gt (len .Alerts.Resolved) 0 }}{{ range .Alerts.Resolved }}
+      <p><strong style="color: green">{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+      <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+      <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+      <p><strong>Details:</strong>
+      {{ range .Labels.SortedPairs }}
+      <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+      {{ end }}</p>
+      {{ end }}
+      {{ end }}</p>
+    require_tls: true
+- name: email-medium
+  email_configs:
+  - send_resolved: true
+    to: to@example.com
+    from: from@example.com
+    smarthost: SMTPendpoint:SMTPport
+    auth_username: [SECRET]
+    auth_password: [SECRET]
+    headers:
+      From: from@example.com
+      Subject: '{{ range .Alerts }}[k8s]-[medium]-[{{ .Labels.alertname | toLower }}]-[{{
+        .Labels.namespace}}]-[eu]{{ end }}'
+      To: to@example.com
+    html: |
+        <p>
+        {{ if gt (len .Alerts.Firing) 0 }}{{ range .Alerts.Firing }}
+        <p><strong style="color: red">{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+        <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+        <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+        <p><strong>Details:</strong>
+        {{ range .Labels.SortedPairs }}
+        <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+        {{ end }}</p>
+        {{ end }}
+        {{ end }}</p>
+        <p>
+        {{ if gt (len .Alerts.Resolved) 0 }}{{ range .Alerts.Resolved }}
+        <p><strong style="color: green">{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+        <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+        <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+        <p><strong>Details:</strong>
+        {{ range .Labels.SortedPairs }}
+        <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+        {{ end }}</p>
+        {{ end }}
+        {{ end }}</p>
+    require_tls: true
+- name: email-low
+  email_configs:
+  - send_resolved: true
+    to: to@example.com
+    from: from@example.com
+    smarthost: SMTPendpoint:SMTPport
+    auth_username: [SECRET]
+    auth_password: [SECRET]
+    headers:
+      From: from@example.com
+      Subject: '{{ range .Alerts }}[k8s]-[low]-[{{ .Labels.alertname | toLower }}]-[{{
+          .Labels.namespace}}]-[eu]{{ end }}'
+      To: to@example.com
+    html: |
+        <p>
+        {{ if gt (len .Alerts.Firing) 0 }}{{ range .Alerts.Firing }}
+        <p><strong style="color: red">{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+        <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+        <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+        <p><strong>Details:</strong>
+        {{ range .Labels.SortedPairs }}
+        <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>
+        {{ end }}</p>
+        {{ end }}
+        {{ end }}</p>
+        <p>
+        {{ if gt (len .Alerts.Resolved) 0 }}{{ range .Alerts.Resolved }}
+        <p><strong style="color: green">{{ .Status | toUpper }}:</strong> {{ .Labels.alertname }}{{ if .Annotations.summary }}({{ .Annotations.summary }}){{ end }} - <code>{{ .Labels.severity }}</code></p>
+        <p><strong>Description:</strong> {{ if .Annotations.message }}{{ .Annotations.message }}{{ else }}{{ .Annotations.description }}{{ end }}</p>
+        <p><strong>Graph:</strong> <a href="{{ .GeneratorURL }}">Source</a></p>
+        <p><strong>Details:</strong>
+        {{ range .Labels.SortedPairs }}        
+        <li><strong>{{ .Name }}:</strong> <code>{{ .Value }}</code></li>        
+        {{ end }}</p>
+        {{ end }}
+        {{ end }}</p>
+    require_tls: true
