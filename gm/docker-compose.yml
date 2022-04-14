@@ -1,0 +1,88 @@
+version: "3"
+services:
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "6061:9090"
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention=6w'
+    restart: always
+    networks:
+      - monitor-net
+
+  # Get metrics of the monitoring machine.
+  node-exporter:
+    image: prom/node-exporter
+    ports:
+      - 6062:9100
+    restart: always
+    networks:
+      - monitor-net
+
+  grafana:
+    image: grafana/grafana:7.1.1
+    ports:
+      - "6003:3000"
+    depends_on:
+      - prometheus
+    volumes:
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+      - ./grafana/conf/:/etc/grafana/
+    restart: always
+    networks:
+      - monitor-net
+
+  # Handles alert.
+#   alertmanager:
+#     image: prom/alertmanager
+#     expose:
+#       - 9093
+#     volumes:
+#       - ./alertmanager/:/etc/alertmanager/
+#     restart: always
+#     command:
+#       - '--config.file=/etc/alertmanager/config.yml'
+#       - '--storage.path=/alertmanager'
+#       - '--log.level=debug'
+#     networks:
+#       - monitor-net
+
+#   caddy:
+#     image: stefanprodan/caddy
+#     container_name: caddy
+#     ports:
+#       - "3000:3000"
+#       - "9090:9090"
+#       - "9093:9093"
+#       - "80:80"
+#     volumes:
+#       - ./caddy/:/etc/caddy/
+#     env_file: .env
+#     environment:
+#       - ADMIN_USER=${ADMIN_USER:-admin}
+#       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+#     restart: always
+#     networks:
+#       - monitor-net
+  
+
+  cadvisor:
+        image: google/cadvisor
+        restart: always
+        container_name: cadvisor
+        ports:
+            - '6004:8080'
+        volumes:
+            - '/:/rootfs:ro'
+            - '/var/run:/var/run:rw'
+            - '/sys:/sys:ro'
+            - '/var/lib/docker/:/var/lib/docker:ro'
+        networks:
+            - monitor-net
+
+networks:
+  monitor-net:
+    driver: bridge

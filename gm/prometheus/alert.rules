@@ -1,0 +1,190 @@
+# Severity levels : warning, error, critical
+
+groups:
+- name: hardware
+  rules:
+  - alert: high_load
+    expr: 100 - (avg by (job) (irate(node_cpu_seconds_total{mode="idle",job!~"runner.*"}[5m])) * 100) > 80
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "VM {{ $labels.job }} is under high load"
+      description: "VM {{ $labels.job }} has been under high load for more than 5 minutes"
+
+  - alert: memory_high
+    expr: (sum(node_memory_MemTotal_bytes) by (job) - sum(node_memory_MemFree_bytes +node_memory_Buffers_bytes + node_memory_Cached_bytes)  by (job)) / sum(node_memory_MemTotal_bytes)  by (job) * 100 > 90
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "VM {{ $labels.job }} : high use of memory"
+      description: "Memory of the VM {{ $labels.job }} is abnormally high."
+
+  - alert: prob_down_dmz_cadvisor
+    expr: up{job="botify-dmz-cadvisor"} == 0
+    for: 30s
+    labels:
+      severity: critical
+    annotations:
+      summary: "Probe cadvisor on DMZ is down"
+      description: "Probe cadvisor on DMZ has been down for more than 30 secondes."
+
+  - alert: prob_down_dmz_metrics
+    expr: up{job="botify-dmz-metrics"} == 0
+    for: 30s
+    labels:
+      severity: critical
+    annotations:
+      summary: "Probe node exporter on DMZ is down"
+      description: "Probe node exporter on DMZ has been down for more than 30 secondes."
+
+  - alert: prob_down_adeo_cadvisor
+    expr: up{job="botify-adeo-cadvisor"} == 0
+    for: 30s
+    labels:
+      severity: critical
+    annotations:
+      summary: "Probe cadvisor on Adeo vm is down"
+      description: "Probe cadvisor on Adeo vm has been down for more than 30 secondes."
+
+  - alert: prob_down_adeo_metrics
+    expr: up{job="botify-adeo-metrics"} == 0
+    for: 30s
+    labels:
+      severity: critical
+    annotations:
+      summary: "Probe node exporter on Adeo vm is down"
+      description: "Probe node exporter on Adeo vm has been down for more than 30 secondes."
+
+  - alert: prob_down_runner02_metrics
+    expr: up{job="runner02-metrics"} == 0
+    for: 30s
+    labels:
+      severity: error
+    annotations:
+      summary: "Probe node exporter on runner 02 is down"
+      description: "Probe node exporter on runner 02 has been down for more than 30 secondes."
+
+  - alert: prob_down_runner01_metrics
+    expr: up{job="runner01-metrics"} == 0
+    for: 30s
+    labels:
+      severity: error
+    annotations:
+      summary: "Probe node exporter on runner 01 is down"
+      description: "Probe node exporter on runner 01 has been down for more than 30 secondes."
+
+  - alert: prob_down_ransible_back_metrics
+    expr: up{job="ransible-back"} == 0
+    for: 30s
+    labels:
+      severity: error
+    annotations:
+      summary: "Ransible-back is down"
+      description: "Ransible-back has been down for more than 30 secondes."
+
+  - alert: disk_space_almost_full
+    expr: 100 - avg(node_filesystem_free_bytes ) by (job) / avg(node_filesystem_size_bytes ) by (job) * 100 > 90
+    for: 30s
+    labels:
+      severity: warning
+    annotations:
+      summary: "VM {{ $labels.job }} has to be cleaned"
+      description: "VM  {{ $labels.job }} has reach more than 90% of its disk space, please remove useless files."
+
+# todo: Find a way to create one rule that handle all the following rules
+- name: containers
+  rules:
+  - alert: service_down_chat_adeo
+    expr: count(container_last_seen{job="botify-adeo-cadvisor", name="botify_chat",id=~"/system.slice/docker-.*"}) == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Server chat is down on the VM Adeo"
+      description: "Server chat has been down for more than 1 minute on the VM Adeo."
+  - alert: service_down_mongo_adeo
+    expr: count(container_last_seen{job="botify-adeo-cadvisor", name="botify_mongo",id=~"/system.slice/docker-.*"}) == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "MongoDb is down on the VM Adeo"
+      description: "MongoDb has been down for more than 1 minute on the VM Adeo."
+  - alert: service_down_algo_adeo
+    expr: count(container_last_seen{job="botify-adeo-cadvisor", name="botify_serveralgo",id=~"/system.slice/docker-.*"}) == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Server Algo is down on the VM Adeo"
+      description: "Server Algo has been down for more than 1 minute on the VM Adeo."
+  - alert: service_down_back_office_adeo
+    expr: count(container_last_seen{job="botify-adeo-cadvisor", name="botify_back_office",id=~"/system.slice/docker-.*"}) == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Back office is down on the VM Adeo"
+      description: "The back office has been down for more than 1 minute on the VM Adeo."
+
+  - alert: service_down_chat_dmz
+    expr: count(container_last_seen{job="botify-dmz-cadvisor", name="botify_chat",id=~"/docker/.*"}) == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Server chat is down on the DMZ VM"
+      description: "Server chat has been down for more than 1 minute on the DMZ VM."
+  - alert: service_down_mongo_dmz
+    expr: count(container_last_seen{job="botify-dmz-cadvisor", name="botify_mongo",id=~"/docker/.*"}) == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "MongoDb is down on the DMZ VM"
+      description: "MongoDb has been down for more than 1 minute on the DMZ VM."
+  - alert: service_down_algo_dmz
+    expr: count(container_last_seen{job="botify-dmz-cadvisor", name="botify_serveralgo",id=~"/docker/.*"}) == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Server Algo is down on the DMZ VM"
+      description: "Server Algo has been down for more than 1 minute on the DMZ VM."
+  - alert: service_down_back_office_dmz
+    expr: count(container_last_seen{job="botify-dmz-cadvisor", name="botify_back_office",id=~"/docker/.*"}) == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Back office is down on the DMZ VM"
+      description: "The back office has been down for more than 1 minute on the DMZ VM."
+
+- name: application
+  rules:
+  - alert: workspace_down
+    expr: workspace_up == 0
+    for: 15m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Workspace {{ $labels.customer }}-{{ $labels.type }}-{{ $labels.language }} down"
+      description: "Workspace {{ $labels.type }}, language : {{ $labels.language }} from customer {{ $labels.customer }} has been down for more than 15min."
+  - alert: application_down
+    expr: up{job="botify_app"} == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Instance {{ $labels.customer }}:{{ $labels.env }} down"
+      description: "Instance {{ $labels.customer }}:{{ $labels.env }} is down, link: {{ $labels.instance }}"
+  - alert: application_down_prod
+    expr: up{job="botify_app_prod"} == 0
+    for: 30s
+    labels:
+      severity: critical
+    annotations:
+      summary: "Instance {{ $labels.customer }}:{{ $labels.env }} down"
+      description: "Instance {{ $labels.customer }}:{{ $labels.env }} is down, link: {{ $labels.instance }}"

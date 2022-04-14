@@ -1,0 +1,25 @@
+global:
+  http_config:
+    proxy_url: 'http://example.com:8080'
+    tls_config:
+      insecure_skip_verify: true
+
+route:
+  receiver: 'slack'
+  group_wait: 5s
+  group_interval: 30s
+
+
+templates:
+  - '/etc/alertmanager/templates/*'
+
+receivers:
+  - name: 'slack'
+    slack_configs:
+    - channel: '#alertmanager'
+      api_url: 'https://hooks.slack.com/services/'
+      title: '{{ template "custom_title" . }}'
+      text: '{{ template "custom_slack_message" . }}'
+      send_resolved: true
+      username: "Deployer"
+
